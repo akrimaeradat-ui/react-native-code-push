@@ -341,7 +341,29 @@ static NSString *const UnzippedFolderName = @"unzipped";
                                                 
                                                 failCallback:failCallback];
     
-    [downloadHandler download:updatePackage[@"downloadUrl"]];
+    NSArray *downloadUrlArray = [self beforeDownloadUrl:updatePackage[@"downloadUrl"] downloadUrlArr:updatePackage[@"downloadUrlArr"]];
+    [downloadHandler downloadURLS:downloadUrlArray currentIndex:0];
+}
+
++ (NSArray *)beforeDownloadUrl:(NSString *)url downloadUrlArr:(NSArray *)urlArr {
+    NSMutableArray<NSString *> *tempArr = [NSMutableArray arrayWithObject:url];
+
+    NSURLComponents *components = [NSURLComponents componentsWithURL:[NSURL URLWithString:url] resolvingAgainstBaseURL:NO];
+    components.path = @"";
+    components.query = nil;
+
+    NSString *baseURLString = components.URL.absoluteString;
+    NSString *pathQuery = [url stringByReplacingOccurrencesOfString:baseURLString withString:@""];
+
+    [urlArr enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        NSString *newUrlString = [obj stringByAppendingString:pathQuery];
+        if ([tempArr containsObject:newUrlString] == NO) {
+            [tempArr addObject:newUrlString];
+        }
+    }];
+
+    NSLog(@"%@", tempArr);
+    return tempArr;
 }
 
 + (NSString *)getCodePushPath
@@ -557,7 +579,7 @@ static NSString *const UnzippedFolderName = @"unzipped";
         return;
     }
     
-    NSString *currentPackageFolderPath = [self getCurrentPackageFolderPath:&error];        
+    NSString *currentPackageFolderPath = [self getCurrentPackageFolderPath:&error];    
     if (!currentPackageFolderPath) {
         CPLog(@"Error getting current package folder path: %@", error);
         return;
