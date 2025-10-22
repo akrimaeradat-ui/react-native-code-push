@@ -32,6 +32,7 @@
     long long _latestExpectedContentLength;
     long long _latestReceivedConentLength;
     BOOL _didUpdateProgress;
+    CFAbsoluteTime _lastDispatchTime;
     
     BOOL _allowed;
     BOOL _restartInProgress;
@@ -735,16 +736,24 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
         // The download is progressing forward
         progressCallback:^(long long expectedContentLength, long long receivedContentLength) {
             // Update the download progress so that the frame observer can notify the JS side
-            _latestExpectedContentLength = expectedContentLength;
-            _latestReceivedConentLength = receivedContentLength;
-            _didUpdateProgress = YES;
+            self->_latestExpectedContentLength = expectedContentLength;
+            self->_latestReceivedConentLength = receivedContentLength;
+            self->_didUpdateProgress = YES;
 
             // If the download is completed, stop observing frame
             // updates and synchronously send the last event.
+            CFAbsoluteTime currentTime = CFAbsoluteTimeGetCurrent();
             if (expectedContentLength == receivedContentLength) {
-                _didUpdateProgress = NO;
+                self->_didUpdateProgress = NO;
                 self.paused = YES;
                 [self dispatchDownloadProgressEvent];
+                return;
+            }
+            @synchronized (self) {
+                if (currentTime - self->_lastDispatchTime >= 0.2) {
+                    self->_lastDispatchTime = currentTime;
+                    [self dispatchDownloadProgressEvent];
+                }
             }
         }
         // The download completed
@@ -764,7 +773,7 @@ RCT_EXPORT_METHOD(downloadUpdate:(NSDictionary*)updatePackage
             }
 
             // Stop observing frame updates if the download fails.
-            _didUpdateProgress = NO;
+            self->_didUpdateProgress = NO;
             self.paused = YES;
             reject([NSString stringWithFormat: @"%lu", (long)err.code], err.localizedDescription, err);
         }];
